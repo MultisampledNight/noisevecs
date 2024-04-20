@@ -1,10 +1,10 @@
 use nannou::{color::Lch, prelude::*};
 use noise::{NoiseFn, Simplex};
 
-const PX_BETWEEN_VECS: f32 = 20.0;
+const PX_BETWEEN_VECS: f32 = 15.0;
 const VEC_LEN: f32 = PX_BETWEEN_VECS * 2.5;
-const NOISE_SCALE: f32 = 0.002;
-const TIME_SCALE: f32 = 0.2;
+const NOISE_SCALE: f32 = 0.001;
+const TIME_SCALE: f32 = 0.4;
 
 fn main() {
     nannou::app(Model::new)
@@ -87,9 +87,9 @@ fn view(app: &App, model: &Model, frame: Frame) {
         // so let's translate it appropiately
         let pos = pos - size / 2.0;
 
-        let lightness = pos.length().sqrt();
+        let lightness = pos.length();
         let color = Lch::new(
-            lightness,
+            lightness * 0.05,
             10.0,
             *hue * 360.0,
         );
@@ -132,8 +132,16 @@ fn noise(gen: Simplex, mut pos: Vec2, time: f32) -> Cell {
         ]) as f32
     };
 
+    let magnitude = scalar(0);
+    let rotation = scalar(1);
+
+    let mut pos = vec2(magnitude, 0.0);
+    pos = pos.rotate(rotation * std::f32::consts::PI * 4.0);
+
+    let hue = scalar(2);
+
     Cell {
-        pos: vec2(scalar(0), scalar(1)),
-        hue: scalar(2),
+        pos,
+        hue,
     }
 }
