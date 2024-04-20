@@ -1,10 +1,8 @@
-use std::cell::Cell;
-
-use nannou::prelude::*;
+use nannou::{color::Lch, prelude::*};
 use noise::{NoiseFn, Simplex};
 
 const PX_BETWEEN_VECS: f32 = 20.0;
-const VEC_LEN: f32 = PX_BETWEEN_VECS * 2.0;
+const VEC_LEN: f32 = PX_BETWEEN_VECS * 2.5;
 const NOISE_SCALE: f32 = 0.002;
 const TIME_SCALE: f32 = 0.2;
 
@@ -17,9 +15,15 @@ fn main() {
 
 #[derive(Debug)]
 struct Model {
-    field: Vec<(Vec2, Rgb)>,
+    field: Vec<Cell>,
     stride: usize,
-    generator: Cell<Simplex>,
+    generator: std::cell::Cell<Simplex>,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct Cell {
+    pos: Vec2,
+    hue: f32,
 }
 
 impl Model {
@@ -27,7 +31,7 @@ impl Model {
         let mut model = Model {
             field: Vec::new(),
             stride: 0,
-            generator: Cell::new(Simplex::new(1)),
+            generator: std::cell::Cell::new(Simplex::new(1)),
         };
         model.resize(app);
         model
@@ -40,15 +44,15 @@ impl Model {
         self.stride = size.x as usize;
         self.field.resize(
             (size.x * size.y) as usize,
-            (vec2(0.0, 0.0), rgb(0.0, 0.0, 0.0)),
+            Cell::default(),
         )
     }
 
-    fn update(&mut self, mut op: impl FnMut(Vec2) -> (Vec2, Rgb)) {
-        self.for_each_mut(|pos, vec| *vec = op(pos));
+    fn update(&mut self, mut op: impl FnMut(Vec2) -> Cell) {
+        self.for_each_mut(|pos, cell| *cell = op(pos));
     }
 
-    fn for_each_mut(&mut self, mut op: impl FnMut(Vec2, &mut (Vec2, Rgb))) {
+    fn for_each_mut(&mut self, mut op: impl FnMut(Vec2, &mut Cell)) {
         let stride = self.stride;
         for (i, cell) in self.field.iter_mut().enumerate() {
             let pos = draw_pos(i, stride);
@@ -56,7 +60,7 @@ impl Model {
         }
     }
 
-    fn for_each(&self, mut op: impl FnMut(Vec2, &(Vec2, Rgb))) {
+    fn for_each(&self, mut op: impl FnMut(Vec2, &Cell)) {
         let stride = self.stride;
         for (i, cell) in self.field.iter().enumerate() {
             let pos = draw_pos(i, stride);
@@ -77,17 +81,17 @@ fn view(app: &App, model: &Model, frame: Frame) {
 
     let size = size(app);
 
-    model.for_each(|pos, (vec, color)| {
+    model.for_each(|pos, Cell { pos: vec, hue }| {
         // pos thinks (0, 0) is a corner
         // but nannou thinks (0, 0) is the center
         // so let's translate it appropiately
         let pos = pos - size / 2.0;
 
-        let lightness = vec.length().sqrt();
-        let color = rgb(
-            color.red * lightness,
-            color.green * lightness,
-            color.blue * lightness,
+        let lightness = pos.length().sqrt();
+        let color = Lch::new(
+            lightness,
+            10.0,
+            *hue * 360.0,
         );
 
         let vec = *vec * VEC_LEN;
@@ -117,18 +121,19 @@ fn size(app: &App) -> Vec2 {
     vec2(width as f32, height as f32)
 }
 
-fn noise(gen: Simplex, mut pos: Vec2, time: f32) -> (Vec2, Rgb) {
+fn noise(gen: Simplex, mut pos: Vec2, time: f32) -> Cell {
     pos *= NOISE_SCALE;
     let scalar = |axis| {
         gen.get([
             pos.x as f64,
             pos.y as f64,
             (time * TIME_SCALE) as f64,
-            axis as f64 * 3000.0,
+            axis as f64 * 100_000.0,
         ]) as f32
     };
-    (
-        vec2(scalar(0), scalar(1)),
-        rgb(scalar(2), scalar(3), scalar(4)),
-    )
+
+    Cell {
+        pos: vec2(scalar(0), scalar(1)),
+        hue: scalar(2),
+    }
 }
