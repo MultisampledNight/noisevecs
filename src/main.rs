@@ -1,10 +1,13 @@
 use nannou::{color::Lch, prelude::*};
 use noise::{NoiseFn, Simplex};
+use rand::prelude::*;
 
-const PX_BETWEEN_VECS: f32 = 15.0;
-const VEC_LEN: f32 = PX_BETWEEN_VECS * 2.5;
-const NOISE_SCALE: f32 = 0.001;
-const TIME_SCALE: f32 = 0.4;
+const PX_BETWEEN_VECS: f32 = 20.0;
+const VEC_LEN: f32 = PX_BETWEEN_VECS * 3.5;
+const NOISE_SCALE: f32 = 0.002;
+const TIME_SCALE: f32 = 0.15;
+const SQUIRLINESS: f32 = 2.0;
+const CHAOTICNESS: f32 = 0.2;
 
 fn main() {
     nannou::app(Model::new)
@@ -22,16 +25,18 @@ struct Model {
 
 #[derive(Clone, Copy, Debug, Default)]
 struct Cell {
-    pos: Vec2,
+    value: Vec2,
+    chroma: f32,
     hue: f32,
 }
 
 impl Model {
     fn new(app: &App) -> Model {
+        let mut rng = thread_rng();
         let mut model = Model {
             field: Vec::new(),
             stride: 0,
-            generator: std::cell::Cell::new(Simplex::new(1)),
+            generator: std::cell::Cell::new(Simplex::new(rng.gen())),
         };
         model.resize(app);
         model
@@ -81,24 +86,24 @@ fn view(app: &App, model: &Model, frame: Frame) {
 
     let size = size(app);
 
-    model.for_each(|pos, Cell { pos: vec, hue }| {
+    model.for_each(|pos, Cell { value, chroma, hue }| {
         // pos thinks (0, 0) is a corner
         // but nannou thinks (0, 0) is the center
         // so let's translate it appropiately
         let pos = pos - size / 2.0;
 
-        let lightness = pos.length();
+        let lightness = value.length().sqrt();
         let color = Lch::new(
-            lightness * 0.05,
-            10.0,
+            30.0 + lightness * 70.0,
+            20.0 + *chroma * 40.0,
             *hue * 360.0,
         );
 
-        let vec = *vec * VEC_LEN;
+        let value = *value * VEC_LEN;
 
         draw.line()
             .start(pos)
-            .end(pos + vec)
+            .end(pos + value)
             .color(color)
             .weight(4.0)
             .caps_round();
@@ -123,25 +128,30 @@ fn size(app: &App) -> Vec2 {
 
 fn noise(gen: Simplex, mut pos: Vec2, time: f32) -> Cell {
     pos *= NOISE_SCALE;
-    let scalar = |axis| {
+    let scalar = |axis, scale| {
         gen.get([
-            pos.x as f64,
-            pos.y as f64,
+            pos.x as f64 * scale,
+            pos.y as f64 * scale,
             (time * TIME_SCALE) as f64,
             axis as f64 * 100_000.0,
         ]) as f32
     };
 
-    let magnitude = scalar(0);
-    let rotation = scalar(1);
+    let magnitude = scalar(0, 1.0);
+    let rotation = scalar(1, 1.0);
+    let chaos = scalar(2, 100.0);
 
-    let mut pos = vec2(magnitude, 0.0);
-    pos = pos.rotate(rotation * std::f32::consts::PI * 4.0);
+    let mut value = vec2(magnitude + (chaos - 0.5) * 2.0 * CHAOTICNESS, 0.0);
 
-    let hue = scalar(2);
+    let pi = std::f32::consts::PI;
+    value = value.rotate(rotation * pi * SQUIRLINESS);
+
+    let chroma = scalar(3, 1.0);
+    let hue = scalar(4, 1.0);
 
     Cell {
-        pos,
+        value,
+        chroma,
         hue,
     }
 }
